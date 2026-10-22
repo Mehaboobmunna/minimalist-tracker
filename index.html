@@ -1,708 +1,683 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minimalist Time Tracker</title>
-    <style>
-        :root {
-            --bg: #090d16;
-            --card-bg: #111726;
-            --card-hover: #172033;
-            --card-active: #1e293b;
-            --border: #1e293b;
-            --border-focus: #3b82f6;
-            --text: #f1f5f9;
-            --text-muted: #64748b;
-            --accent: #2563eb;
-            --accent-hover: #1d4ed8;
-            --success: #10b981;
-            --danger: #ef4444;
-            --radius: 8px;
-            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: var(--font-sans);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            padding: 24px 16px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 960px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 14px;
-        }
-
-        .logo-area {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .logo-area h1 {
-            font-size: 1.15rem;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-        }
-
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* Hero Banner */
-        .hero-banner {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 14px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: border-color 0.15s;
-        }
-
-        .hero-banner.running {
-            border-color: #1e3a8a;
-            box-shadow: 0 0 16px rgba(37, 99, 235, 0.08);
-        }
-
-        .hero-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .pulse-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--text-muted);
-            opacity: 0.3;
-        }
-
-        .pulse-dot.active {
-            background: var(--success);
-            opacity: 1;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% {
-                transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-            }
-
-            70% {
-                transform: scale(1.1);
-                box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
-            }
-
-            100% {
-                transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
-            }
-        }
-
-        .hero-clock {
-            font-family: var(--font-mono);
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #60a5fa;
-            cursor: pointer;
-            padding: 2px 6px;
-            border-radius: 4px;
-            transition: background 0.15s;
-        }
-
-        .hero-clock:hover {
-            background: #1e293b;
-            text-decoration: underline;
-        }
-
-        /* Main Two-Column Layout (Vertical Projects + Tasks) */
-        .app-workspace {
-            display: grid;
-            grid-template-columns: 280px 1fr;
-            gap: 16px;
-            align-items: start;
-        }
-
-        @media (max-width: 768px) {
-            .app-workspace {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* Vertical Project Column */
-        .project-panel {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-        }
-
-        .project-vertical-list {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            max-height: 520px;
-            overflow-y: auto;
-            padding-right: 2px;
-        }
-
-        .project-vertical-list::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        .project-vertical-list::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 4px;
-        }
-
-        .project-card {
-            background: transparent;
-            border: 1px solid transparent;
-            color: var(--text-muted);
-            padding: 10px 12px;
-            border-radius: var(--radius);
-            font-size: 0.85rem;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: all 0.15s;
-            text-align: left;
-            width: 100%;
-        }
-
-        .project-card:hover {
-            background: var(--card-hover);
-            color: var(--text);
-        }
-
-        .project-card.active {
-            background: var(--card-active);
-            border-color: var(--accent);
-            color: #fff;
-        }
-
-        .project-card-name {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-weight: 500;
-            margin-right: 8px;
-        }
-
-        .project-card-time {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            opacity: 0.8;
-            flex-shrink: 0;
-        }
-
-        /* Tasks Panel */
-        .tasks-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .input-row {
-            display: flex;
-            gap: 8px;
-        }
-
-        input[type="text"],
-        input[type="number"] {
-            flex: 1;
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            color: var(--text);
-            padding: 10px 14px;
-            border-radius: var(--radius);
-            font-size: 0.9rem;
-            outline: none;
-            transition: border-color 0.15s;
-        }
-
-        input:focus {
-            border-color: var(--border-focus);
-        }
-
-        button {
-            font-family: inherit;
-            cursor: pointer;
-            border: none;
-            border-radius: var(--radius);
-            padding: 8px 14px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: background 0.15s;
-        }
-
-        .btn-primary {
-            background: var(--accent);
-            color: white;
-            white-space: nowrap;
-        }
-
-        .btn-primary:hover {
-            background: var(--accent-hover);
-        }
-
-        .btn-start {
-            background: #064e3b;
-            color: #6ee7b7;
-            border: 1px solid #047857;
-        }
-
-        .btn-start:hover {
-            background: #047857;
-            color: #fff;
-        }
-
-        .btn-pause {
-            background: #78350f;
-            color: #fde68a;
-            border: 1px solid #b45309;
-        }
-
-        .btn-pause:hover {
-            background: #b45309;
-            color: #fff;
-        }
-
-        .btn-action {
-            background: #1e293b;
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-
-        .btn-action:hover {
-            background: #334155;
-        }
-
-        .btn-delete {
-            background: transparent;
-            color: #64748b;
-            padding: 4px 8px;
-        }
-
-        .btn-delete:hover {
-            color: var(--danger);
-        }
-
-        /* Task list */
-        .task-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .task-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 12px 16px;
-            transition: border-color 0.15s;
-        }
-
-        .task-item.running {
-            border-color: #2563eb;
-        }
-
-        .task-title {
-            font-size: 0.9rem;
-            cursor: pointer;
-            border-bottom: 1px dashed transparent;
-            transition: border-color 0.15s;
-        }
-
-        .task-title:hover {
-            border-bottom-color: var(--text-muted);
-        }
-
-        .task-controls {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .task-timer {
-            font-family: var(--font-mono);
-            font-size: 0.9rem;
-            min-width: 72px;
-            text-align: right;
-            cursor: pointer;
-            padding: 4px 6px;
-            border-radius: 4px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid transparent;
-            transition: all 0.15s;
-        }
-
-        .task-timer:hover {
-            background: #1e293b;
-            border-color: #334155;
-            color: #93c5fd;
-        }
-
-        /* Modal Styling */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.75);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
-            backdrop-filter: blur(2px);
-        }
-
-        .modal-card {
-            background: #111726;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 24px;
-            width: 380px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-        }
-
-        .modal-title {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .modal-subtitle {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-top: -8px;
-        }
-
-        .time-inputs {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .time-field {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .time-field label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            font-family: var(--font-mono);
-        }
-
-        .time-field input {
-            text-align: center;
-            font-family: var(--font-mono);
-            font-size: 1.1rem;
-            padding: 8px;
-        }
-
-        .quick-adjust-group {
-            display: flex;
-            gap: 6px;
-        }
-
-        .btn-chip {
-            flex: 1;
-            background: #1e293b;
-            border: 1px solid var(--border);
-            color: var(--text-muted);
-            padding: 6px 4px;
-            border-radius: var(--radius);
-            font-size: 0.75rem;
-            font-family: var(--font-mono);
-        }
-
-        .btn-chip:hover {
-            background: #334155;
-            color: var(--text);
-        }
-
-        .modal-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            margin-top: 8px;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 32px 16px;
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            border: 1px dashed var(--border);
-            border-radius: var(--radius);
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minimalist Time Tracker</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111726;
+      --card-hover: #172033;
+      --card-active: #1e293b;
+      --border: #1e293b;
+      --border-focus: #3b82f6;
+      --text: #f1f5f9;
+      --text-muted: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --radius: 8px;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .logo-area { display: flex; align-items: center; gap: 10px; }
+    .logo-area h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; }
+    
+    .hotkey-hints {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 8px;
+    }
+    kbd {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: #93c5fd;
+    }
+
+    .header-actions { display: flex; align-items: center; gap: 6px; }
+
+    /* Hero Banner */
+    .hero-banner {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .hero-banner.running {
+      border-color: #1e3a8a;
+      box-shadow: 0 0 16px rgba(37, 99, 235, 0.08);
+    }
+
+    .hero-left { display: flex; align-items: center; gap: 12px; }
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      opacity: 0.3;
+    }
+
+    .pulse-dot.active {
+      background: var(--success);
+      opacity: 1;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .hero-clock-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hero-clock {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #60a5fa;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+    .hero-clock:hover { background: #1e293b; text-decoration: underline; }
+
+    /* App Two-Column Workspace */
+    .app-workspace {
+      display: grid;
+      grid-template-columns: 290px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 768px) {
+      .app-workspace { grid-template-columns: 1fr; }
+    }
+
+    /* Vertical Project Panel */
+    .project-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .project-vertical-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 520px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .project-vertical-list::-webkit-scrollbar { width: 4px; }
+    .project-vertical-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .project-card {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.15s;
+      width: 100%;
+    }
+
+    .project-card:hover { background: var(--card-hover); color: var(--text); }
+    .project-card.active { background: var(--card-active); border-color: var(--accent); color: #fff; }
+
+    .project-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow: hidden;
+      margin-right: 6px;
+    }
+
+    .project-card-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+
+    .project-card-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .project-card-time {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      opacity: 0.85;
+    }
+
+    .btn-project-delete {
+      background: transparent;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 3px;
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+    }
+    .project-card:hover .btn-project-delete { opacity: 1; }
+    .btn-project-delete:hover { color: var(--danger); background: rgba(239, 68, 68, 0.1); }
+
+    /* Tasks Panel */
+    .tasks-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .tasks-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px;
+    }
+
+    .toggle-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .toggle-label input { cursor: pointer; }
+
+    .input-row { display: flex; gap: 8px; }
+    input[type="text"], input[type="number"] {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--border-focus); }
+
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+
+    .btn-primary { background: var(--accent); color: white; white-space: nowrap; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-start { background: #064e3b; color: #6ee7b7; border: 1px solid #047857; }
+    .btn-start:hover { background: #047857; color: #fff; }
+    .btn-pause { background: #78350f; color: #fde68a; border: 1px solid #b45309; }
+    .btn-pause:hover { background: #b45309; color: #fff; }
+    .btn-action { background: #1e293b; color: var(--text); border: 1px solid var(--border); }
+    .btn-action:hover { background: #334155; }
+    .btn-delete { background: transparent; color: #64748b; padding: 4px 8px; }
+    .btn-delete:hover { color: var(--danger); }
+
+    /* Task list */
+    .task-list { display: flex; flex-direction: column; gap: 8px; }
+    .task-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      transition: border-color 0.15s, opacity 0.15s;
+    }
+    .task-item.running { border-color: #2563eb; }
+    .task-item.completed { opacity: 0.55; }
+
+    .task-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow: hidden;
+      margin-right: 12px;
+    }
+
+    .task-checkbox {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .task-title {
+      font-size: 0.9rem;
+      cursor: pointer;
+      border-bottom: 1px dashed transparent;
+      transition: border-color 0.15s;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .task-item.completed .task-title {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+    .task-title:hover { border-bottom-color: var(--text-muted); }
+
+    .task-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    
+    .task-timer {
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      min-width: 70px;
+      text-align: right;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+    .task-timer:hover {
+      background: #1e293b;
+      border-color: #334155;
+      color: #93c5fd;
+    }
+
+    /* Duration Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      backdrop-filter: blur(2px);
+    }
+    .modal-card {
+      background: #111726;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      width: 380px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-title { font-size: 1rem; font-weight: 600; }
+    .modal-subtitle { font-size: 0.8rem; color: var(--text-muted); margin-top: -8px; }
+
+    .time-inputs { display: flex; gap: 8px; align-items: center; }
+    .time-field { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+    .time-field label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-family: var(--font-mono); }
+    .time-field input { text-align: center; font-family: var(--font-mono); font-size: 1.1rem; padding: 8px; }
+
+    .quick-adjust-group { display: flex; gap: 6px; }
+    .btn-chip {
+      flex: 1;
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px 4px;
+      border-radius: var(--radius);
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+    }
+    .btn-chip:hover { background: #334155; color: var(--text); }
+
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+    }
+  </style>
 </head>
-
 <body>
-    <div class="container">
-        <header>
-            <div class="logo-area">
-                <h1>Minimalist Tracker</h1>
-            </div>
-            <div class="header-actions">
-                <button class="btn-action" onclick="exportCSV()" style="font-size: 0.75rem;">Export CSV</button>
-                <button class="btn-action" onclick="resetToZero()"
-                    style="font-size: 0.75rem; color: var(--danger);">Reset</button>
-            </div>
-        </header>
-
-        <!-- Top Running Hero Banner -->
-        <div class="hero-banner" id="hero-banner">
-            <div class="hero-left">
-                <span class="pulse-dot" id="hero-pulse"></span>
-                <div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);" id="hero-project-name">No active task
-                    </div>
-                    <div style="font-weight: 600;" id="hero-task-name">Idle</div>
-                </div>
-            </div>
-            <div class="hero-clock" id="hero-clock" onclick="editCurrentRunningTime()" title="Click to adjust duration">
-                00:00:00</div>
+  <div class="container">
+    <header>
+      <div class="logo-area">
+        <h1>Minimalist Tracker</h1>
+        <div class="hotkey-hints">
+          <span><kbd>Space</kbd> Play/Pause</span>
+          <span><kbd>N</kbd> New Task</span>
         </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn-action" onclick="exportCSV()" style="font-size: 0.75rem;">Export CSV</button>
+        <button class="btn-action" onclick="backupJSON()" style="font-size: 0.75rem;">Backup</button>
+        <button class="btn-action" onclick="document.getElementById('restore-input').click()" style="font-size: 0.75rem;">Restore</button>
+        <input type="file" id="restore-input" accept=".json" style="display: none;" onchange="restoreJSON(event)">
+        <button class="btn-action" onclick="resetToZero()" style="font-size: 0.75rem; color: var(--danger);">Reset</button>
+      </div>
+    </header>
 
-        <!-- App Two-Column Workspace -->
-        <div class="app-workspace">
-            <!-- Vertical Projects Panel -->
-            <aside class="project-panel">
-                <div class="panel-header">
-                    <span>Projects</span>
-                    <span id="project-count" style="font-family: var(--font-mono);">0</span>
-                </div>
-
-                <form id="project-form" class="input-row">
-                    <input type="text" id="project-input" placeholder="New project..." autocomplete="off">
-                    <button type="submit" class="btn-primary" style="padding: 8px 10px;">+</button>
-                </form>
-
-                <div class="project-vertical-list" id="project-list"></div>
-            </aside>
-
-            <!-- Tasks Panel -->
-            <main class="tasks-panel">
-                <form id="task-form" class="input-row">
-                    <input type="text" id="task-input" placeholder="Type task & press Enter to auto-start..."
-                        autocomplete="off">
-                    <button type="submit" class="btn-primary">+ Task</button>
-                </form>
-
-                <div class="task-list" id="task-list"></div>
-            </main>
+    <!-- Top Running Hero Banner -->
+    <div class="hero-banner" id="hero-banner">
+      <div class="hero-left">
+        <span class="pulse-dot" id="hero-pulse"></span>
+        <div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);" id="hero-project-name">No active task</div>
+          <div style="font-weight: 600;" id="hero-task-name">Idle</div>
         </div>
+      </div>
+      <div class="hero-clock-box">
+        <div class="hero-clock" id="hero-clock" onclick="editCurrentRunningTime()" title="Click to adjust duration">00:00:00</div>
+        <button class="btn-action" id="hero-toggle-btn" onclick="toggleActiveTask()" style="padding: 6px 12px;">Toggle</button>
+      </div>
     </div>
 
-    <!-- Duration Adjustment Modal -->
-    <div class="modal-overlay" id="edit-duration-modal" style="display: none;">
-        <div class="modal-card">
-            <div>
-                <div class="modal-title" id="edit-modal-task-title">Adjust Duration</div>
-                <div class="modal-subtitle">Update duration if you left the timer running</div>
-            </div>
-
-            <div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px;">Quick Off-Desk
-                    Adjustments:</div>
-                <div class="quick-adjust-group">
-                    <button type="button" class="btn-chip" onclick="quickSubtract(300)">- 5 min</button>
-                    <button type="button" class="btn-chip" onclick="quickSubtract(900)">- 15 min</button>
-                    <button type="button" class="btn-chip" onclick="quickSubtract(1800)">- 30 min</button>
-                    <button type="button" class="btn-chip" onclick="quickSubtract(3600)">- 1 hr</button>
-                </div>
-            </div>
-
-            <div class="time-inputs">
-                <div class="time-field">
-                    <label>Hours</label>
-                    <input type="number" id="edit-hours" min="0" max="999">
-                </div>
-                <div style="font-size: 1.2rem; font-weight: bold; margin-top: 16px;">:</div>
-                <div class="time-field">
-                    <label>Mins</label>
-                    <input type="number" id="edit-minutes" min="0" max="59">
-                </div>
-                <div style="font-size: 1.2rem; font-weight: bold; margin-top: 16px;">:</div>
-                <div class="time-field">
-                    <label>Secs</label>
-                    <input type="number" id="edit-seconds" min="0" max="59">
-                </div>
-            </div>
-
-            <div class="modal-actions">
-                <button class="btn-action" onclick="closeEditModal()">Cancel</button>
-                <button class="btn-primary" onclick="saveEditedDuration()">Save Duration</button>
-            </div>
+    <!-- App Two-Column Workspace -->
+    <div class="app-workspace">
+      <!-- Vertical Projects Panel -->
+      <aside class="project-panel">
+        <div class="panel-header">
+          <span>Projects</span>
+          <span id="project-count" style="font-family: var(--font-mono);">0</span>
         </div>
+
+        <form id="project-form" class="input-row">
+          <input type="text" id="project-input" placeholder="New project..." autocomplete="off">
+          <button type="submit" class="btn-primary" style="padding: 8px 10px;">+</button>
+        </form>
+
+        <div class="project-vertical-list" id="project-list"></div>
+      </aside>
+
+      <!-- Tasks Panel -->
+      <main class="tasks-panel">
+        <div class="tasks-toolbar">
+          <span style="font-size: 0.8rem; color: var(--text-muted);" id="task-panel-summary">Tasks</span>
+          <label class="toggle-label">
+            <input type="checkbox" id="hide-completed-toggle" onchange="toggleHideCompleted(this.checked)">
+            Hide completed
+          </label>
+        </div>
+
+        <form id="task-form" class="input-row">
+          <input type="text" id="task-input" placeholder="Type task & press Enter to auto-start..." autocomplete="off">
+          <button type="submit" class="btn-primary">+ Task</button>
+        </form>
+
+        <div class="task-list" id="task-list"></div>
+      </main>
     </div>
+  </div>
 
-    <script>
-        const STORAGE_KEY = 'minimalist_tracker_state';
+  <!-- Duration Adjustment Modal -->
+  <div class="modal-overlay" id="edit-duration-modal" style="display: none;">
+    <div class="modal-card">
+      <div>
+        <div class="modal-title" id="edit-modal-task-title">Adjust Duration</div>
+        <div class="modal-subtitle">Update duration if you left the timer running</div>
+      </div>
 
-        function loadState() {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    const now = Date.now();
-                    parsed.tasks.forEach(task => {
-                        if (task.isRunning && task.startedAt) {
-                            task.accumulatedSeconds += Math.floor((now - task.startedAt) / 1000);
-                            task.startedAt = now;
-                        }
-                    });
-                    return parsed;
-                } catch (e) {
-                    console.error(e);
-                }
+      <div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px;">Quick Deductions:</div>
+        <div class="quick-adjust-group">
+          <button type="button" class="btn-chip" onclick="quickSubtract(300)">- 5 min</button>
+          <button type="button" class="btn-chip" onclick="quickSubtract(900)">- 15 min</button>
+          <button type="button" class="btn-chip" onclick="quickSubtract(1800)">- 30 min</button>
+          <button type="button" class="btn-chip" onclick="quickSubtract(3600)">- 1 hr</button>
+        </div>
+      </div>
+
+      <div class="time-inputs">
+        <div class="time-field">
+          <label>Hours</label>
+          <input type="number" id="edit-hours" min="0" max="999">
+        </div>
+        <div style="font-size: 1.2rem; font-weight: bold; margin-top: 16px;">:</div>
+        <div class="time-field">
+          <label>Mins</label>
+          <input type="number" id="edit-minutes" min="0" max="59">
+        </div>
+        <div style="font-size: 1.2rem; font-weight: bold; margin-top: 16px;">:</div>
+        <div class="time-field">
+          <label>Secs</label>
+          <input type="number" id="edit-seconds" min="0" max="59">
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-action" onclick="closeEditModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveEditedDuration()">Save Duration</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Storage compatibility: checks current key, falls back to legacy key
+    const STORAGE_KEY = 'minimalist_tracker_state';
+    const FALLBACK_KEY = 'minimalist_tracker_v3';
+
+    function loadState() {
+      let saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(FALLBACK_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const now = Date.now();
+          parsed.tasks.forEach(task => {
+            if (task.isRunning && task.startedAt) {
+              task.accumulatedSeconds += Math.floor((now - task.startedAt) / 1000);
+              task.startedAt = now;
             }
-            return {
-                activeProjectId: 'proj-1',
-                projects: [
-                    { id: 'proj-1', name: 'General Work' }
-                ],
-                tasks: []
-            };
+            if (task.completed === undefined) task.completed = false;
+          });
+          if (parsed.hideCompleted === undefined) parsed.hideCompleted = false;
+          return parsed;
+        } catch (e) {
+          console.error(e);
         }
+      }
+      return {
+        activeProjectId: 'proj-1',
+        hideCompleted: false,
+        projects: [{ id: 'proj-1', name: 'General Work' }],
+        tasks: []
+      };
+    }
 
-        let state = loadState();
-        let editingTaskId = null;
+    let state = loadState();
+    let editingTaskId = null;
 
-        function saveState() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    window.addEventListener('beforeunload', () => {
+      const now = Date.now();
+      state.tasks.forEach(task => {
+        if (task.isRunning && task.startedAt) {
+          task.accumulatedSeconds += Math.floor((now - task.startedAt) / 1000);
+          task.startedAt = now;
         }
+      });
+      saveState();
+    });
 
-        window.addEventListener('beforeunload', () => {
-            const now = Date.now();
-            state.tasks.forEach(task => {
-                if (task.isRunning && task.startedAt) {
-                    task.accumulatedSeconds += Math.floor((now - task.startedAt) / 1000);
-                    task.startedAt = now;
-                }
-            });
-            saveState();
-        });
+    // Formatting & Time Calculations
+    function formatTime(s) {
+      const hrs = Math.floor(s / 3600);
+      const mins = Math.floor((s % 3600) / 60);
+      const secs = s % 60;
+      const pad = n => String(n).padStart(2, '0');
+      return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+    }
 
-        // Formatting & Time Helpers
-        function formatTime(s) {
-            const hrs = Math.floor(s / 3600);
-            const mins = Math.floor((s % 3600) / 60);
-            const secs = s % 60;
-            const pad = n => String(n).padStart(2, '0');
-            return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
-        }
+    function getTaskSeconds(t) {
+      let total = t.accumulatedSeconds || 0;
+      if (t.isRunning && t.startedAt) {
+        total += Math.floor((Date.now() - t.startedAt) / 1000);
+      }
+      return total;
+    }
 
-        function getTaskSeconds(t) {
-            let total = t.accumulatedSeconds || 0;
-            if (t.isRunning && t.startedAt) {
-                total += Math.floor((Date.now() - t.startedAt) / 1000);
-            }
-            return total;
-        }
+    function getProjectSeconds(pId) {
+      return state.tasks.filter(t => t.projectId === pId).reduce((sum, t) => sum + getTaskSeconds(t), 0);
+    }
 
-        function getProjectSeconds(pId) {
-            return state.tasks.filter(t => t.projectId === pId).reduce((sum, t) => sum + getTaskSeconds(t), 0);
-        }
+    // Render Pipeline
+    function render() {
+      renderProjects();
+      renderTasks();
+      updateClocks();
+    }
 
-        // Render Pipeline
-        function render() {
-            renderProjects();
-            renderTasks();
-            updateClocks();
-        }
+    function renderProjects() {
+      const container = document.getElementById('project-list');
+      container.innerHTML = '';
 
-        function renderProjects() {
-            const container = document.getElementById('project-list');
-            container.innerHTML = '';
+      document.getElementById('project-count').textContent = state.projects.length;
 
-            document.getElementById('project-count').textContent = state.projects.length;
-
-            state.projects.forEach(p => {
-                const btn = document.createElement('button');
-                btn.className = `project-card ${p.id === state.activeProjectId ? 'active' : ''}`;
-                btn.innerHTML = `
-          <span class="project-card-name" title="${p.name}">${p.name}</span>
-          <span class="project-card-time" id="p-badge-${p.id}">00:00:00</span>
+      state.projects.forEach(p => {
+        const btn = document.createElement('div');
+        btn.className = `project-card ${p.id === state.activeProjectId ? 'active' : ''}`;
+        btn.innerHTML = `
+          <div class="project-card-meta" onclick="selectProject('${p.id}')">
+            <span class="project-card-name" title="${p.name}">${p.name}</span>
+          </div>
+          <div class="project-card-right">
+            <span class="project-card-time" id="p-badge-${p.id}">00:00:00</span>
+            <button class="btn-project-delete" onclick="deleteProject(event, '${p.id}')" title="Delete Project">✕</button>
+          </div>
         `;
-                btn.onclick = () => {
-                    state.activeProjectId = p.id;
-                    saveState();
-                    render();
-                };
-                container.appendChild(btn);
-            });
+        container.appendChild(btn);
+      });
+    }
+
+    window.selectProject = function(pId) {
+      state.activeProjectId = pId;
+      saveState();
+      render();
+    };
+
+    window.deleteProject = function(e, pId) {
+      e.stopPropagation();
+      if (state.projects.length <= 1) {
+        alert("You must keep at least one project.");
+        return;
+      }
+      const p = state.projects.find(x => x.id === pId);
+      if (confirm(`Delete project "${p ? p.name : ''}" and all its tasks?`)) {
+        state.tasks = state.tasks.filter(t => t.projectId !== pId);
+        state.projects = state.projects.filter(x => x.id !== pId);
+        if (state.activeProjectId === pId) {
+          state.activeProjectId = state.projects[0].id;
         }
+        saveState();
+        render();
+      }
+    };
 
-        function renderTasks() {
-            const container = document.getElementById('task-list');
-            container.innerHTML = '';
-            const list = state.tasks.filter(t => t.projectId === state.activeProjectId);
+    function renderTasks() {
+      const container = document.getElementById('task-list');
+      container.innerHTML = '';
 
-            if (list.length === 0) {
-                container.innerHTML = '<div class="empty-state">No tasks here yet. Type a task title above to start tracking.</div>';
-                return;
-            }
+      document.getElementById('hide-completed-toggle').checked = state.hideCompleted;
 
-            list.forEach(t => {
-                const item = document.createElement('div');
-                item.className = `task-item ${t.isRunning ? 'running' : ''}`;
-                item.innerHTML = `
-          <span class="task-title" onclick="editTaskName('${t.id}')" title="Click to rename">${t.title}</span>
+      let list = state.tasks.filter(t => t.projectId === state.activeProjectId);
+      if (state.hideCompleted) {
+        list = list.filter(t => !t.completed);
+      }
+
+      if (list.length === 0) {
+        container.innerHTML = '<div class="empty-state">No tasks here yet. Type a task title above to start tracking.</div>';
+        return;
+      }
+
+      list.forEach(t => {
+        const item = document.createElement('div');
+        item.className = `task-item ${t.isRunning ? 'running' : ''} ${t.completed ? 'completed' : ''}`;
+        item.innerHTML = `
+          <div class="task-left">
+            <input type="checkbox" class="task-checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTaskCompletion('${t.id}')">
+            <span class="task-title" onclick="editTaskName('${t.id}')" title="Click to rename">${t.title}</span>
+          </div>
           <div class="task-controls">
             <span class="task-timer" id="timer-${t.id}" onclick="openEditDurationModal('${t.id}')" title="Click to adjust logged time">
               00:00:00
@@ -710,231 +685,337 @@
             <button class="${t.isRunning ? 'btn-pause' : 'btn-start'}" onclick="toggleTask('${t.id}')">
               ${t.isRunning ? 'Pause' : 'Start'}
             </button>
-            <button class="btn-delete" onclick="deleteTask('${t.id}')" title="Delete">✕</button>
+            <button class="btn-delete" onclick="deleteTask('${t.id}')" title="Delete Task">✕</button>
           </div>
         `;
-                container.appendChild(item);
-            });
-        }
+        container.appendChild(item);
+      });
+    }
 
-        function updateClocks() {
-            const runningTask = state.tasks.find(t => t.isRunning);
-            const heroPulse = document.getElementById('hero-pulse');
-            const heroClock = document.getElementById('hero-clock');
-            const heroTask = document.getElementById('hero-task-name');
-            const heroProj = document.getElementById('hero-project-name');
-            const heroBanner = document.getElementById('hero-banner');
+    function updateClocks() {
+      const runningTask = state.tasks.find(t => t.isRunning);
+      const heroPulse = document.getElementById('hero-pulse');
+      const heroClock = document.getElementById('hero-clock');
+      const heroTask = document.getElementById('hero-task-name');
+      const heroProj = document.getElementById('hero-project-name');
+      const heroBanner = document.getElementById('hero-banner');
+      const heroToggleBtn = document.getElementById('hero-toggle-btn');
 
-            if (runningTask) {
-                const activeProj = state.projects.find(p => p.id === runningTask.projectId);
-                heroPulse.classList.add('active');
-                heroBanner.classList.add('running');
-                heroTask.textContent = runningTask.title;
-                heroProj.textContent = activeProj ? activeProj.name : 'Project';
-                heroClock.textContent = formatTime(getTaskSeconds(runningTask));
-            } else {
-                heroPulse.classList.remove('active');
-                heroBanner.classList.remove('running');
-                heroTask.textContent = 'Idle';
-                heroProj.textContent = 'No active timer';
-                heroClock.textContent = '00:00:00';
-            }
+      if (runningTask) {
+        const activeProj = state.projects.find(p => p.id === runningTask.projectId);
+        const timeStr = formatTime(getTaskSeconds(runningTask));
+        heroPulse.classList.add('active');
+        heroBanner.classList.add('running');
+        heroTask.textContent = runningTask.title;
+        heroProj.textContent = activeProj ? activeProj.name : 'Project';
+        heroClock.textContent = timeStr;
+        heroToggleBtn.textContent = 'Pause';
 
-            state.tasks.forEach(t => {
-                const el = document.getElementById(`timer-${t.id}`);
-                if (el) el.textContent = formatTime(getTaskSeconds(t));
-            });
+        // Update live browser tab title
+        document.title = `(${timeStr}) ${runningTask.title} • Tracker`;
+      } else {
+        heroPulse.classList.remove('active');
+        heroBanner.classList.remove('running');
+        heroTask.textContent = 'Idle';
+        heroProj.textContent = 'No active timer';
+        heroClock.textContent = '00:00:00';
+        heroToggleBtn.textContent = 'Resume';
+        document.title = 'Minimalist Time Tracker';
+      }
 
-            state.projects.forEach(p => {
-                const el = document.getElementById(`p-badge-${p.id}`);
-                if (el) el.textContent = formatTime(getProjectSeconds(p.id));
-            });
-        }
+      state.tasks.forEach(t => {
+        const el = document.getElementById(`timer-${t.id}`);
+        if (el) el.textContent = formatTime(getTaskSeconds(t));
+      });
 
-        // Task Editing Functions
-        window.editTaskName = function (id) {
-            const task = state.tasks.find(t => t.id === id);
-            if (!task) return;
-            const newTitle = prompt("Update task name:", task.title);
-            if (newTitle && newTitle.trim()) {
-                task.title = newTitle.trim();
-                saveState();
-                render();
-            }
-        };
+      state.projects.forEach(p => {
+        const el = document.getElementById(`p-badge-${p.id}`);
+        if (el) el.textContent = formatTime(getProjectSeconds(p.id));
+      });
+    }
 
-        window.editCurrentRunningTime = function () {
-            const running = state.tasks.find(t => t.isRunning);
-            if (running) {
-                openEditDurationModal(running.id);
-            }
-        };
+    // Task Actions
+    window.toggleTaskCompletion = function(id) {
+      const task = state.tasks.find(t => t.id === id);
+      if (!task) return;
+      task.completed = !task.completed;
+      if (task.completed && task.isRunning) {
+        // Pause timer if user checks it done while running
+        task.accumulatedSeconds += Math.floor((Date.now() - task.startedAt) / 1000);
+        task.isRunning = false;
+        task.startedAt = null;
+      }
+      saveState();
+      render();
+    };
 
-        // Duration Modal Handling
-        window.openEditDurationModal = function (taskId) {
-            editingTaskId = taskId;
-            const task = state.tasks.find(t => t.id === taskId);
-            if (!task) return;
+    window.toggleHideCompleted = function(checked) {
+      state.hideCompleted = checked;
+      saveState();
+      render();
+    };
 
-            const currentTotal = getTaskSeconds(task);
-            const hrs = Math.floor(currentTotal / 3600);
-            const mins = Math.floor((currentTotal % 3600) / 60);
-            const secs = currentTotal % 60;
-
-            document.getElementById('edit-modal-task-title').textContent = `Adjust: "${task.title}"`;
-            document.getElementById('edit-hours').value = hrs;
-            document.getElementById('edit-minutes').value = mins;
-            document.getElementById('edit-seconds').value = secs;
-
-            document.getElementById('edit-duration-modal').style.display = 'flex';
-        };
-
-        window.closeEditModal = function () {
-            document.getElementById('edit-duration-modal').style.display = 'none';
-            editingTaskId = null;
-        };
-
-        window.quickSubtract = function (secondsToDeduct) {
-            const hInput = document.getElementById('edit-hours');
-            const mInput = document.getElementById('edit-minutes');
-            const sInput = document.getElementById('edit-seconds');
-
-            let currentSecs = (parseInt(hInput.value) || 0) * 3600 +
-                (parseInt(mInput.value) || 0) * 60 +
-                (parseInt(sInput.value) || 0);
-
-            currentSecs = Math.max(0, currentSecs - secondsToDeduct);
-
-            hInput.value = Math.floor(currentSecs / 3600);
-            mInput.value = Math.floor((currentSecs % 3600) / 60);
-            sInput.value = currentSecs % 60;
-        };
-
-        window.saveEditedDuration = function () {
-            if (!editingTaskId) return;
-            const task = state.tasks.find(t => t.id === editingTaskId);
-            if (!task) return;
-
-            const hrs = parseInt(document.getElementById('edit-hours').value) || 0;
-            const mins = parseInt(document.getElementById('edit-minutes').value) || 0;
-            const secs = parseInt(document.getElementById('edit-seconds').value) || 0;
-
-            const newTotalSeconds = Math.max(0, (hrs * 3600) + (mins * 60) + secs);
-
-            if (task.isRunning) {
-                task.accumulatedSeconds = newTotalSeconds;
-                task.startedAt = Date.now();
-            } else {
-                task.accumulatedSeconds = newTotalSeconds;
-            }
-
-            saveState();
-            closeEditModal();
-            render();
-        };
-
-        // Timer and Task Controls
-        window.toggleTask = function (id) {
-            const now = Date.now();
-            const target = state.tasks.find(t => t.id === id);
-            if (!target) return;
-
-            if (target.isRunning) {
-                target.accumulatedSeconds += Math.floor((now - target.startedAt) / 1000);
-                target.isRunning = false;
-                target.startedAt = null;
-            } else {
-                state.tasks.forEach(t => {
-                    if (t.isRunning) {
-                        t.accumulatedSeconds += Math.floor((now - t.startedAt) / 1000);
-                        t.isRunning = false;
-                        t.startedAt = null;
-                    }
-                });
-                target.isRunning = true;
-                target.startedAt = now;
-            }
-            saveState();
-            render();
-        };
-
-        window.deleteTask = function (id) {
-            state.tasks = state.tasks.filter(t => t.id !== id);
-            saveState();
-            render();
-        };
-
-        // Add Project
-        document.getElementById('project-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const input = document.getElementById('project-input');
-            const name = input.value.trim();
-            if (!name) return;
-            const newId = 'proj-' + Date.now();
-            state.projects.push({ id: newId, name });
-            state.activeProjectId = newId;
-            input.value = '';
-            saveState();
-            render();
-        });
-
-        // Add Task with Instant Auto-Start
-        document.getElementById('task-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const input = document.getElementById('task-input');
-            const title = input.value.trim();
-            if (!title || !state.activeProjectId) return;
-
-            const now = Date.now();
-            state.tasks.forEach(t => {
-                if (t.isRunning) {
-                    t.accumulatedSeconds += Math.floor((now - t.startedAt) / 1000);
-                    t.isRunning = false;
-                    t.startedAt = null;
-                }
-            });
-
-            state.tasks.push({
-                id: 'task-' + Date.now(),
-                projectId: state.activeProjectId,
-                title,
-                accumulatedSeconds: 0,
-                isRunning: true,
-                startedAt: now
-            });
-
-            input.value = '';
-            saveState();
-            render();
-        });
-
-        window.exportCSV = function () {
-            let csv = "Project,Task,Duration(HH:MM:SS),TotalSeconds\n";
-            state.tasks.forEach(t => {
-                const p = state.projects.find(x => x.id === t.projectId);
-                const s = getTaskSeconds(t);
-                csv += `"${p ? p.name : ''}","${t.title}","${formatTime(s)}",${s}\n`;
-            });
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `timesheet_${new Date().toISOString().slice(0, 10)}.csv`;
-            a.click();
-        };
-
-        window.resetToZero = function () {
-            if (confirm("Reset everything to zero? All tasks and projects will be wiped.")) {
-                localStorage.removeItem(STORAGE_KEY);
-                state = { activeProjectId: 'proj-1', projects: [{ id: 'proj-1', name: 'General Work' }], tasks: [] };
-                saveState();
-                render();
-            }
-        };
-
-        // Initialize
+    window.editTaskName = function(id) {
+      const task = state.tasks.find(t => t.id === id);
+      if (!task) return;
+      const newTitle = prompt("Update task name:", task.title);
+      if (newTitle && newTitle.trim()) {
+        task.title = newTitle.trim();
+        saveState();
         render();
-        setInterval(updateClocks, 1000);
-    </script>
-</body>
+      }
+    };
 
+    window.editCurrentRunningTime = function() {
+      const running = state.tasks.find(t => t.isRunning);
+      if (running) openEditDurationModal(running.id);
+    };
+
+    window.toggleActiveTask = function() {
+      const running = state.tasks.find(t => t.isRunning);
+      if (running) {
+        toggleTask(running.id);
+      } else {
+        // Resume first task in current project if one exists
+        const first = state.tasks.find(t => t.projectId === state.activeProjectId && !t.completed);
+        if (first) toggleTask(first.id);
+      }
+    };
+
+    // Duration Modal Handling
+    window.openEditDurationModal = function(taskId) {
+      editingTaskId = taskId;
+      const task = state.tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const currentTotal = getTaskSeconds(task);
+      const hrs = Math.floor(currentTotal / 3600);
+      const mins = Math.floor((currentTotal % 3600) / 60);
+      const secs = currentTotal % 60;
+
+      document.getElementById('edit-modal-task-title').textContent = `Adjust: "${task.title}"`;
+      document.getElementById('edit-hours').value = hrs;
+      document.getElementById('edit-minutes').value = mins;
+      document.getElementById('edit-seconds').value = secs;
+
+      document.getElementById('edit-duration-modal').style.display = 'flex';
+    };
+
+    window.closeEditModal = function() {
+      document.getElementById('edit-duration-modal').style.display = 'none';
+      editingTaskId = null;
+    };
+
+    window.quickSubtract = function(secondsToDeduct) {
+      const hInput = document.getElementById('edit-hours');
+      const mInput = document.getElementById('edit-minutes');
+      const sInput = document.getElementById('edit-seconds');
+
+      let currentSecs = (parseInt(hInput.value) || 0) * 3600 +
+                        (parseInt(mInput.value) || 0) * 60 +
+                        (parseInt(sInput.value) || 0);
+
+      currentSecs = Math.max(0, currentSecs - secondsToDeduct);
+
+      hInput.value = Math.floor(currentSecs / 3600);
+      mInput.value = Math.floor((currentSecs % 3600) / 60);
+      sInput.value = currentSecs % 60;
+    };
+
+    window.saveEditedDuration = function() {
+      if (!editingTaskId) return;
+      const task = state.tasks.find(t => t.id === editingTaskId);
+      if (!task) return;
+
+      const hrs = parseInt(document.getElementById('edit-hours').value) || 0;
+      const mins = parseInt(document.getElementById('edit-minutes').value) || 0;
+      const secs = parseInt(document.getElementById('edit-seconds').value) || 0;
+
+      const newTotalSeconds = Math.max(0, (hrs * 3600) + (mins * 60) + secs);
+
+      if (task.isRunning) {
+        task.accumulatedSeconds = newTotalSeconds;
+        task.startedAt = Date.now();
+      } else {
+        task.accumulatedSeconds = newTotalSeconds;
+      }
+
+      saveState();
+      closeEditModal();
+      render();
+    };
+
+    // Timer Controls
+    window.toggleTask = function(id) {
+      const now = Date.now();
+      const target = state.tasks.find(t => t.id === id);
+      if (!target) return;
+
+      if (target.isRunning) {
+        target.accumulatedSeconds += Math.floor((now - target.startedAt) / 1000);
+        target.isRunning = false;
+        target.startedAt = null;
+      } else {
+        state.tasks.forEach(t => {
+          if (t.isRunning) {
+            t.accumulatedSeconds += Math.floor((now - t.startedAt) / 1000);
+            t.isRunning = false;
+            t.startedAt = null;
+          }
+        });
+        target.isRunning = true;
+        target.startedAt = now;
+      }
+      saveState();
+      render();
+    };
+
+    window.deleteTask = function(id) {
+      state.tasks = state.tasks.filter(t => t.id !== id);
+      saveState();
+      render();
+    };
+
+    // Add Project
+    document.getElementById('project-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('project-input');
+      const name = input.value.trim();
+      if (!name) return;
+      const newId = 'proj-' + Date.now();
+      state.projects.push({ id: newId, name });
+      state.activeProjectId = newId;
+      input.value = '';
+      saveState();
+      render();
+    });
+
+    // Add Task with Instant Auto-Start
+    document.getElementById('task-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('task-input');
+      const title = input.value.trim();
+      if (!title || !state.activeProjectId) return;
+
+      const now = Date.now();
+      state.tasks.forEach(t => {
+        if (t.isRunning) {
+          t.accumulatedSeconds += Math.floor((now - t.startedAt) / 1000);
+          t.isRunning = false;
+          t.startedAt = null;
+        }
+      });
+
+      state.tasks.push({
+        id: 'task-' + Date.now(),
+        projectId: state.activeProjectId,
+        title,
+        accumulatedSeconds: 0,
+        isRunning: true,
+        startedAt: now,
+        completed: false
+      });
+
+      input.value = '';
+      saveState();
+      render();
+    });
+
+    // Global Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      const isInput = activeTag === 'input' || activeTag === 'textarea';
+
+      // ESC: Close modal or pause active timers
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('edit-duration-modal');
+        if (modal.style.display === 'flex') {
+          closeEditModal();
+        } else {
+          state.tasks.forEach(t => {
+            if (t.isRunning) {
+              t.accumulatedSeconds += Math.floor((Date.now() - t.startedAt) / 1000);
+              t.isRunning = false;
+              t.startedAt = null;
+            }
+          });
+          saveState();
+          render();
+        }
+        return;
+      }
+
+      // Hotkeys when NOT typing in an input
+      if (!isInput) {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          toggleActiveTask();
+        } else if (e.key === 'n' || e.key === 'N' || e.key === '/') {
+          e.preventDefault();
+          document.getElementById('task-input').focus();
+        }
+      }
+    });
+
+    // Export & Backup
+    window.exportCSV = function() {
+      let csv = "Project,Task,Status,Duration(HH:MM:SS),TotalSeconds\n";
+      state.tasks.forEach(t => {
+        const p = state.projects.find(x => x.id === t.projectId);
+        const s = getTaskSeconds(t);
+        const status = t.completed ? "Completed" : "Active";
+        csv += `"${p ? p.name : ''}","${t.title}","${status}","${formatTime(s)}",${s}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `timesheet_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    };
+
+    window.backupJSON = function() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `tracker_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+    };
+
+    window.restoreJSON = function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.projects && imported.tasks) {
+            state = imported;
+            saveState();
+            render();
+            alert("Backup restored successfully!");
+          } else {
+            alert("Invalid tracker backup format.");
+          }
+        } catch (err) {
+          alert("Error parsing JSON file.");
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    window.resetToZero = function() {
+      if (confirm("Reset everything to zero? All tasks and projects will be wiped.")) {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(FALLBACK_KEY);
+        state = { activeProjectId: 'proj-1', hideCompleted: false, projects: [{ id: 'proj-1', name: 'General Work' }], tasks: [] };
+        saveState();
+        render();
+      }
+    };
+
+    // Initialize
+    render();
+    setInterval(updateClocks, 1000);
+  </script>
+</body>
 </html>
