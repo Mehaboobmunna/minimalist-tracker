@@ -3,7 +3,70 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#090d16">
+  <meta name="description" content="Minimalist multi-project time tracking application.">
   <title>Minimalist Time Tracker</title>
+
+  <!-- PWA Manifest & Service Worker Auto-Registration -->
+  <script>
+    (function initPWA() {
+      // 1. Generate an inline SVG Icon for the PWA
+      const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+        <rect width="512" height="512" rx="100" fill="#090d16"/>
+        <circle cx="256" cy="256" r="180" fill="none" stroke="#2563eb" stroke-width="32"/>
+        <polyline points="256,120 256,256 340,300" fill="none" stroke="#60a5fa" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>`;
+      const iconUrl = 'data:image/svg+xml;base64,' + btoa(svgIcon);
+
+      // Add favicon & apple-touch-icon
+      const favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      favicon.href = iconUrl;
+      document.head.appendChild(favicon);
+
+      // 2. Inline Web App Manifest
+      const manifest = {
+        name: "Minimalist Time Tracker",
+        short_name: "Tracker",
+        start_url: "./",
+        display: "standalone",
+        background_color: "#090d16",
+        theme_color: "#090d16",
+        icons: [
+          { src: iconUrl, sizes: "192x192 512x512", type: "image/svg+xml", purpose: "any maskable" }
+        ]
+      };
+      const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      const manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = URL.createObjectURL(manifestBlob);
+      document.head.appendChild(manifestLink);
+
+      // 3. Inline Service Worker Registration for Offline Capabilities
+      if ('serviceWorker' in navigator) {
+        const swScript = `
+          const CACHE_NAME = 'tracker-cache-v1';
+          self.addEventListener('install', (e) => {
+            self.skipWaiting();
+          });
+          self.addEventListener('activate', (e) => {
+            e.waitUntil(clients.claim());
+          });
+          self.addEventListener('fetch', (e) => {
+            e.respondWith(
+              fetch(e.request).catch(() => caches.match(e.request))
+            );
+          });
+        `;
+        const swBlob = new Blob([swScript], { type: 'text/javascript' });
+        const swUrl = URL.createObjectURL(swBlob);
+        navigator.serviceWorker.register(swUrl).catch((err) => {
+          console.warn('Service Worker registration skipped (expected on non-HTTPS origins):', err);
+        });
+      }
+    })();
+  </script>
+
   <style>
     :root {
       --bg: #090d16;
@@ -74,6 +137,16 @@
 
     .header-actions { display: flex; align-items: center; gap: 6px; }
 
+    /* Install App Button */
+    .btn-install {
+      background: #1e3a8a;
+      color: #bfdbfe;
+      border: 1px solid #3b82f6;
+      font-weight: 600;
+      display: none; /* Appears only when PWA prompt triggers */
+    }
+    .btn-install:hover { background: #2563eb; color: #fff; }
+
     /* Hero Banner */
     .hero-banner {
       background: var(--card-bg);
@@ -130,7 +203,7 @@
     }
     .hero-clock:hover { background: #1e293b; text-decoration: underline; }
 
-    /* App Two-Column Workspace */
+    /* Workspace */
     .app-workspace {
       display: grid;
       grid-template-columns: 290px 1fr;
@@ -180,7 +253,7 @@
       background: transparent;
       border: 1px solid transparent;
       color: var(--text-muted);
-      padding: 8px 10px;
+      padding: 10px 12px;
       border-radius: var(--radius);
       font-size: 0.85rem;
       cursor: pointer;
@@ -189,10 +262,19 @@
       align-items: center;
       transition: all 0.15s;
       width: 100%;
+      user-select: none;
     }
 
-    .project-card:hover { background: var(--card-hover); color: var(--text); }
-    .project-card.active { background: var(--card-active); border-color: var(--accent); color: #fff; }
+    .project-card:hover { 
+      background: var(--card-hover); 
+      color: var(--text); 
+    }
+    
+    .project-card.active { 
+      background: var(--card-active); 
+      border-color: var(--accent); 
+      color: #fff; 
+    }
 
     .project-card-meta {
       display: flex;
@@ -200,6 +282,8 @@
       gap: 6px;
       overflow: hidden;
       margin-right: 6px;
+      flex: 1;
+      pointer-events: none;
     }
 
     .project-card-name {
@@ -220,6 +304,7 @@
       font-family: var(--font-mono);
       font-size: 0.75rem;
       opacity: 0.85;
+      pointer-events: none;
     }
 
     .btn-project-delete {
@@ -227,13 +312,13 @@
       border: none;
       color: #64748b;
       cursor: pointer;
-      padding: 2px 4px;
+      padding: 2px 6px;
       border-radius: 3px;
       opacity: 0;
       transition: opacity 0.15s, color 0.15s;
     }
     .project-card:hover .btn-project-delete { opacity: 1; }
-    .btn-project-delete:hover { color: var(--danger); background: rgba(239, 68, 68, 0.1); }
+    .btn-project-delete:hover { color: var(--danger); background: rgba(239, 68, 68, 0.15); }
 
     /* Tasks Panel */
     .tasks-panel {
@@ -318,6 +403,7 @@
       gap: 10px;
       overflow: hidden;
       margin-right: 12px;
+      flex: 1;
     }
 
     .task-checkbox {
@@ -362,7 +448,7 @@
       color: #93c5fd;
     }
 
-    /* Duration Modal */
+    /* Modal */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -428,6 +514,8 @@
         </div>
       </div>
       <div class="header-actions">
+        <!-- PWA Install Button (revealed on supported desktop/mobile browsers) -->
+        <button id="pwa-install-btn" class="btn-install" style="font-size: 0.75rem;">Install App</button>
         <button class="btn-action" onclick="exportCSV()" style="font-size: 0.75rem;">Export CSV</button>
         <button class="btn-action" onclick="backupJSON()" style="font-size: 0.75rem;">Backup</button>
         <button class="btn-action" onclick="document.getElementById('restore-input').click()" style="font-size: 0.75rem;">Restore</button>
@@ -471,7 +559,7 @@
       <!-- Tasks Panel -->
       <main class="tasks-panel">
         <div class="tasks-toolbar">
-          <span style="font-size: 0.8rem; color: var(--text-muted);" id="task-panel-summary">Tasks</span>
+          <span style="font-size: 0.8rem; font-weight: 600; color: #93c5fd;" id="active-project-heading">Tasks</span>
           <label class="toggle-label">
             <input type="checkbox" id="hide-completed-toggle" onchange="toggleHideCompleted(this.checked)">
             Hide completed
@@ -531,9 +619,37 @@
   </div>
 
   <script>
-    // Storage compatibility: checks current key, falls back to legacy key
     const STORAGE_KEY = 'minimalist_tracker_state';
     const FALLBACK_KEY = 'minimalist_tracker_v3';
+
+    // PWA Install Prompt Listener
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('pwa-install-btn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      // Prevent browser's default banner
+      e.preventDefault();
+      deferredPrompt = e;
+      // Show custom install button in header
+      if (installBtn) {
+        installBtn.style.display = 'inline-block';
+      }
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        installBtn.style.display = 'none';
+      }
+      deferredPrompt = null;
+    });
+
+    window.addEventListener('appinstalled', () => {
+      if (installBtn) installBtn.style.display = 'none';
+      console.log('PWA installed successfully');
+    });
 
     function loadState() {
       let saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(FALLBACK_KEY);
@@ -580,7 +696,7 @@
       saveState();
     });
 
-    // Formatting & Time Calculations
+    // Formatting & Time Helpers
     function formatTime(s) {
       const hrs = Math.floor(s / 3600);
       const mins = Math.floor((s % 3600) / 60);
@@ -603,6 +719,10 @@
 
     // Render Pipeline
     function render() {
+      if (!state.projects.some(p => p.id === state.activeProjectId) && state.projects.length > 0) {
+        state.activeProjectId = state.projects[0].id;
+      }
+
       renderProjects();
       renderTasks();
       updateClocks();
@@ -615,10 +735,17 @@
       document.getElementById('project-count').textContent = state.projects.length;
 
       state.projects.forEach(p => {
-        const btn = document.createElement('div');
-        btn.className = `project-card ${p.id === state.activeProjectId ? 'active' : ''}`;
-        btn.innerHTML = `
-          <div class="project-card-meta" onclick="selectProject('${p.id}')">
+        const card = document.createElement('div');
+        const isActive = p.id === state.activeProjectId;
+        card.className = `project-card ${isActive ? 'active' : ''}`;
+        
+        card.onclick = (e) => {
+          if (e.target.closest('.btn-project-delete')) return;
+          selectProject(p.id);
+        };
+
+        card.innerHTML = `
+          <div class="project-card-meta">
             <span class="project-card-name" title="${p.name}">${p.name}</span>
           </div>
           <div class="project-card-right">
@@ -626,8 +753,11 @@
             <button class="btn-project-delete" onclick="deleteProject(event, '${p.id}')" title="Delete Project">✕</button>
           </div>
         `;
-        container.appendChild(btn);
+        container.appendChild(card);
       });
+
+      const currentProj = state.projects.find(p => p.id === state.activeProjectId);
+      document.getElementById('active-project-heading').textContent = currentProj ? `Tasks • ${currentProj.name}` : 'Tasks';
     }
 
     window.selectProject = function(pId) {
@@ -666,7 +796,7 @@
       }
 
       if (list.length === 0) {
-        container.innerHTML = '<div class="empty-state">No tasks here yet. Type a task title above to start tracking.</div>';
+        container.innerHTML = '<div class="empty-state">No tasks in this project yet. Add one above to start tracking.</div>';
         return;
       }
 
@@ -711,7 +841,6 @@
         heroClock.textContent = timeStr;
         heroToggleBtn.textContent = 'Pause';
 
-        // Update live browser tab title
         document.title = `(${timeStr}) ${runningTask.title} • Tracker`;
       } else {
         heroPulse.classList.remove('active');
@@ -740,7 +869,6 @@
       if (!task) return;
       task.completed = !task.completed;
       if (task.completed && task.isRunning) {
-        // Pause timer if user checks it done while running
         task.accumulatedSeconds += Math.floor((Date.now() - task.startedAt) / 1000);
         task.isRunning = false;
         task.startedAt = null;
@@ -776,13 +904,12 @@
       if (running) {
         toggleTask(running.id);
       } else {
-        // Resume first task in current project if one exists
         const first = state.tasks.find(t => t.projectId === state.activeProjectId && !t.completed);
         if (first) toggleTask(first.id);
       }
     };
 
-    // Duration Modal Handling
+    // Duration Modal
     window.openEditDurationModal = function(taskId) {
       editingTaskId = taskId;
       const task = state.tasks.find(t => t.id === taskId);
@@ -926,7 +1053,6 @@
       const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
       const isInput = activeTag === 'input' || activeTag === 'textarea';
 
-      // ESC: Close modal or pause active timers
       if (e.key === 'Escape') {
         const modal = document.getElementById('edit-duration-modal');
         if (modal.style.display === 'flex') {
@@ -945,7 +1071,6 @@
         return;
       }
 
-      // Hotkeys when NOT typing in an input
       if (!isInput) {
         if (e.code === 'Space') {
           e.preventDefault();
