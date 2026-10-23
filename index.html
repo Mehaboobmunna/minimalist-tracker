@@ -306,7 +306,6 @@
     .btn-start { background: #064e3b; color: #6ee7b7; border: 1px solid #047857; }
     .btn-start:hover { background: #047857; color: #fff; }
     
-    /* Stop button with distinctive alert styling */
     .btn-stop { background: #451a1a; color: #fca5a5; border: 1px solid #991b1b; }
     .btn-stop:hover { background: #b91c1c; color: #fff; }
 
@@ -394,7 +393,7 @@
       color: #93c5fd;
     }
 
-    /* Modal */
+    /* Duration Modal */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -563,29 +562,80 @@
   </div>
 
   <script>
+    // Storage keys: primary key + legacy keys ladder (including minimalist_tracker_zero_v2)
     const STORAGE_KEY = 'minimalist_tracker_state';
-    const FALLBACK_KEY = 'minimalist_tracker_v3';
+    const LEGACY_KEYS = [
+      'minimalist_tracker_zero_v2', // 3 days logged work key
+      'minimalist_tracker_v3'
+    ];
 
     function loadState() {
-      let saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(FALLBACK_KEY);
-      if (saved) {
+      let raw = localStorage.getItem(STORAGE_KEY);
+      let importedFromLegacy = false;
+
+      // If the primary key is empty or contains zero tasks, attempt to migrate from legacy keys
+      let needsMigration = false;
+      if (!raw) {
+        needsMigration = true;
+      } else {
         try {
-          const parsed = JSON.parse(saved);
-          const now = Date.now();
-          parsed.tasks.forEach(task => {
-            if (task.isRunning && task.startedAt) {
-              task.accumulatedSeconds += Math.floor((now - task.startedAt) / 1000);
-              task.startedAt = now;
-            }
-            if (task.completed === undefined) task.completed = false;
-            if (!task.intervals) task.intervals = [];
-          });
-          if (parsed.hideCompleted === undefined) parsed.hideCompleted = false;
-          return parsed;
-        } catch (e) {
-          console.error(e);
+          const check = JSON.parse(raw);
+          if (!check.tasks || check.tasks.length === 0) {
+            needsMigration = true;
+          }
+        } catch(e) {
+          needsMigration = true;
         }
       }
+
+      if (needsMigration) {
+        for (const key of LEGACY_KEYS) {
+          const found = localStorage.getItem(key);
+          if (found) {
+            try {
+              const test = JSON.parse(found);
+              if (test && test.tasks && test.tasks.length > 0) {
+                raw = found;
+                importedFromLegacy = true;
+                break;
+              }
+            } catch(e) {}
+          }
+        }
+      }
+
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          const now = Date.now();
+
+          if (parsed.tasks && Array.isArray(parsed.tasks)) {
+            parsed.tasks.forEach(task => {
+              if (task.isRunning && task.startedAt) {
+                task.accumulatedSeconds += Math.floor((now - task.startedAt) / 1000);
+                task.startedAt = now;
+              }
+              if (task.completed === undefined) task.completed = false;
+              if (!task.intervals) task.intervals = [];
+              if (task.currentStartISO === undefined) task.currentStartISO = null;
+              if (task.lastStartISO === undefined) task.lastStartISO = null;
+              if (task.lastEndISO === undefined) task.lastEndISO = null;
+            });
+          }
+
+          if (parsed.hideCompleted === undefined) parsed.hideCompleted = false;
+
+          // Migrate forward into primary key
+          if (importedFromLegacy) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+          }
+
+          return parsed;
+        } catch (e) {
+          console.error("Error parsing stored data:", e);
+        }
+      }
+
       return {
         activeProjectId: 'proj-1',
         hideCompleted: false,
@@ -731,7 +781,6 @@
         const item = document.createElement('div');
         item.className = `task-item ${t.isRunning ? 'running' : ''} ${t.completed ? 'completed' : ''}`;
         
-        // Show start/end timestamps if recorded
         let stampHtml = '';
         if (t.isRunning) {
           stampHtml = `<div class="task-stamp-info">Started: ${formatDate(t.currentStartISO)} ${formatClockTime(t.currentStartISO)}</div>`;
@@ -830,7 +879,7 @@
         target.startedAt = null;
         target.currentStartISO = null;
       } else {
-        // STOP ANY CURRENTLY RUNNING TASKS FIRST
+        // STOP CURRENT RUNNING TASKS FIRST
         state.tasks.forEach(t => {
           if (t.isRunning) {
             const d = Math.floor((now - t.startedAt) / 1000);
@@ -874,7 +923,7 @@
       if (!task) return;
       task.completed = !task.completed;
       if (task.completed && task.isRunning) {
-        toggleTask(task.id); // Stop and stamp it
+        toggleTask(task.id);
       }
       saveState();
       render();
@@ -1037,7 +1086,6 @@
         if (modal.style.display === 'flex') {
           closeEditModal();
         } else {
-          // Stop running task
           const running = state.tasks.find(t => t.isRunning);
           if (running) toggleTask(running.id);
         }
@@ -1074,14 +1122,13 @@
           });
         }
 
-        // If it's currently running right now, append current in-progress slice
         if (t.isRunning && t.startedAt) {
           const sliceSecs = Math.floor((Date.now() - t.startedAt) / 1000);
           const d = new Date(t.currentStartISO || t.startedAt);
           csv += `"${pName}","${t.title}","In Progress","${d.toLocaleDateString()}","${formatClockTime(d)}","Running","${formatTime(sliceSecs)}",${sliceSecs}\n`;
         }
 
-        // Fallback for manually edited or legacy tasks without interval logs
+        // Clean export fallback for legacy tasks (your 3 days of work without raw intervals)
         if ((!t.intervals || t.intervals.length === 0) && !t.isRunning) {
           const totalSecs = t.accumulatedSeconds || 0;
           csv += `"${pName}","${t.title}","${status}","${new Date().toLocaleDateString()}","--","--","${formatTime(totalSecs)}",${totalSecs}\n`;
@@ -1129,7 +1176,7 @@
     window.resetToZero = function() {
       if (confirm("Reset everything to zero? All tasks, intervals, and projects will be permanently wiped.")) {
         localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(FALLBACK_KEY);
+        LEGACY_KEYS.forEach(k => localStorage.removeItem(k));
         state = { activeProjectId: 'proj-1', hideCompleted: false, projects: [{ id: 'proj-1', name: 'General Work' }], tasks: [] };
         saveState();
         render();
