@@ -700,4 +700,445 @@
         alert("You must keep at least one project.");
         return;
       }
-      const p = state.projects.find(x => x.
+      const p = state.projects.find(x => x.id === pId);
+      if (confirm(`Delete project "${p ? p.name : ''}" and all its tasks?`)) {
+        state.tasks = state.tasks.filter(t => t.projectId !== pId);
+        state.projects = state.projects.filter(x => x.id !== pId);
+        if (state.activeProjectId === pId) {
+          state.activeProjectId = state.projects[0].id;
+        }
+        saveState();
+        render();
+      }
+    };
+
+    function renderTasks() {
+      const container = document.getElementById('task-list');
+      container.innerHTML = '';
+      document.getElementById('hide-completed-toggle').checked = state.hideCompleted;
+
+      let list = state.tasks.filter(t => t.projectId === state.activeProjectId);
+      if (state.hideCompleted) {
+        list = list.filter(t => !t.completed);
+      }
+
+      if (list.length === 0) {
+        container.innerHTML = '<div class="empty-state">No tasks in this project yet. Add one above to start tracking.</div>';
+        return;
+      }
+
+      list.forEach(t => {
+        const item = document.createElement('div');
+        item.className = `task-item ${t.isRunning ? 'running' : ''} ${t.completed ? 'completed' : ''}`;
+        
+        // Show start/end timestamps if recorded
+        let stampHtml = '';
+        if (t.isRunning) {
+          stampHtml = `<div class="task-stamp-info">Started: ${formatDate(t.currentStartISO)} ${formatClockTime(t.currentStartISO)}</div>`;
+        } else if (t.lastStartISO && t.lastEndISO) {
+          stampHtml = `<div class="task-stamp-info">Last: ${formatDate(t.lastStartISO)} ${formatClockTime(t.lastStartISO)} → ${formatClockTime(t.lastEndISO)}</div>`;
+        }
+
+        item.innerHTML = `
+          <div class="task-left">
+            <div class="task-main-row">
+              <input type="checkbox" class="task-checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTaskCompletion('${t.id}')">
+              <span class="task-title" onclick="editTaskName('${t.id}')" title="Click to rename">${t.title}</span>
+            </div>
+            ${stampHtml}
+          </div>
+          <div class="task-controls">
+            <span class="task-timer" id="timer-${t.id}" onclick="openEditDurationModal('${t.id}')" title="Click to adjust logged time">
+              00:00:00
+            </span>
+            <button class="${t.isRunning ? 'btn-stop' : 'btn-start'}" onclick="toggleTask('${t.id}')">
+              ${t.isRunning ? 'Stop' : 'Start'}
+            </button>
+            <button class="btn-delete" onclick="deleteTask('${t.id}')" title="Delete Task">✕</button>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function updateClocks() {
+      const runningTask = state.tasks.find(t => t.isRunning);
+      const heroPulse = document.getElementById('hero-pulse');
+      const heroClock = document.getElementById('hero-clock');
+      const heroTask = document.getElementById('hero-task-name');
+      const heroProj = document.getElementById('hero-project-name');
+      const heroBanner = document.getElementById('hero-banner');
+      const heroToggleBtn = document.getElementById('hero-toggle-btn');
+
+      if (runningTask) {
+        const activeProj = state.projects.find(p => p.id === runningTask.projectId);
+        const timeStr = formatTime(getTaskSeconds(runningTask));
+        heroPulse.classList.add('active');
+        heroBanner.classList.add('running');
+        heroTask.textContent = runningTask.title;
+        heroProj.textContent = activeProj ? activeProj.name : 'Project';
+        heroClock.textContent = timeStr;
+        heroToggleBtn.textContent = 'Stop';
+        document.title = `(${timeStr}) ${runningTask.title} • Tracker`;
+      } else {
+        heroPulse.classList.remove('active');
+        heroBanner.classList.remove('running');
+        heroTask.textContent = 'Idle';
+        heroProj.textContent = 'No active timer';
+        heroClock.textContent = '00:00:00';
+        heroToggleBtn.textContent = 'Start';
+        document.title = 'Minimalist Time Tracker';
+      }
+
+      state.tasks.forEach(t => {
+        const el = document.getElementById(`timer-${t.id}`);
+        if (el) el.textContent = formatTime(getTaskSeconds(t));
+      });
+
+      state.projects.forEach(p => {
+        const el = document.getElementById(`p-badge-${p.id}`);
+        if (el) el.textContent = formatTime(getProjectSeconds(p.id));
+      });
+    }
+
+    // Start / Stop Core Logic
+    window.toggleTask = function(id) {
+      const now = Date.now();
+      const nowISO = new Date(now).toISOString();
+      const target = state.tasks.find(t => t.id === id);
+      if (!target) return;
+
+      if (!target.intervals) target.intervals = [];
+
+      if (target.isRunning) {
+        // STOPPING THE TASK
+        const duration = Math.floor((now - target.startedAt) / 1000);
+        target.accumulatedSeconds += duration;
+        target.isRunning = false;
+
+        const startISO = target.currentStartISO || new Date(target.startedAt).toISOString();
+        const endISO = nowISO;
+
+        target.intervals.push({
+          start: startISO,
+          end: endISO,
+          durationSeconds: duration
+        });
+
+        target.lastStartISO = startISO;
+        target.lastEndISO = endISO;
+        target.startedAt = null;
+        target.currentStartISO = null;
+      } else {
+        // STOP ANY CURRENTLY RUNNING TASKS FIRST
+        state.tasks.forEach(t => {
+          if (t.isRunning) {
+            const d = Math.floor((now - t.startedAt) / 1000);
+            t.accumulatedSeconds += d;
+            t.isRunning = false;
+            const sISO = t.currentStartISO || new Date(t.startedAt).toISOString();
+            if (!t.intervals) t.intervals = [];
+            t.intervals.push({
+              start: sISO,
+              end: nowISO,
+              durationSeconds: d
+            });
+            t.lastStartISO = sISO;
+            t.lastEndISO = nowISO;
+            t.startedAt = null;
+            t.currentStartISO = null;
+          }
+        });
+
+        // START THIS TASK
+        target.isRunning = true;
+        target.startedAt = now;
+        target.currentStartISO = nowISO;
+      }
+      saveState();
+      render();
+    };
+
+    window.toggleActiveTask = function() {
+      const running = state.tasks.find(t => t.isRunning);
+      if (running) {
+        toggleTask(running.id);
+      } else {
+        const first = state.tasks.find(t => t.projectId === state.activeProjectId && !t.completed);
+        if (first) toggleTask(first.id);
+      }
+    };
+
+    window.toggleTaskCompletion = function(id) {
+      const task = state.tasks.find(t => t.id === id);
+      if (!task) return;
+      task.completed = !task.completed;
+      if (task.completed && task.isRunning) {
+        toggleTask(task.id); // Stop and stamp it
+      }
+      saveState();
+      render();
+    };
+
+    window.toggleHideCompleted = function(checked) {
+      state.hideCompleted = checked;
+      saveState();
+      render();
+    };
+
+    window.editTaskName = function(id) {
+      const task = state.tasks.find(t => t.id === id);
+      if (!task) return;
+      const newTitle = prompt("Update task name:", task.title);
+      if (newTitle && newTitle.trim()) {
+        task.title = newTitle.trim();
+        saveState();
+        render();
+      }
+    };
+
+    window.editCurrentRunningTime = function() {
+      const running = state.tasks.find(t => t.isRunning);
+      if (running) openEditDurationModal(running.id);
+    };
+
+    // Duration Modal
+    window.openEditDurationModal = function(taskId) {
+      editingTaskId = taskId;
+      const task = state.tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const currentTotal = getTaskSeconds(task);
+      const hrs = Math.floor(currentTotal / 3600);
+      const mins = Math.floor((currentTotal % 3600) / 60);
+      const secs = currentTotal % 60;
+
+      document.getElementById('edit-modal-task-title').textContent = `Adjust: "${task.title}"`;
+      document.getElementById('edit-hours').value = hrs;
+      document.getElementById('edit-minutes').value = mins;
+      document.getElementById('edit-seconds').value = secs;
+      document.getElementById('edit-duration-modal').style.display = 'flex';
+    };
+
+    window.closeEditModal = function() {
+      document.getElementById('edit-duration-modal').style.display = 'none';
+      editingTaskId = null;
+    };
+
+    window.quickSubtract = function(secondsToDeduct) {
+      const hInput = document.getElementById('edit-hours');
+      const mInput = document.getElementById('edit-minutes');
+      const sInput = document.getElementById('edit-seconds');
+
+      let currentSecs = (parseInt(hInput.value) || 0) * 3600 +
+                        (parseInt(mInput.value) || 0) * 60 +
+                        (parseInt(sInput.value) || 0);
+
+      currentSecs = Math.max(0, currentSecs - secondsToDeduct);
+      hInput.value = Math.floor(currentSecs / 3600);
+      mInput.value = Math.floor((currentSecs % 3600) / 60);
+      sInput.value = currentSecs % 60;
+    };
+
+    window.saveEditedDuration = function() {
+      if (!editingTaskId) return;
+      const task = state.tasks.find(t => t.id === editingTaskId);
+      if (!task) return;
+
+      const hrs = parseInt(document.getElementById('edit-hours').value) || 0;
+      const mins = parseInt(document.getElementById('edit-minutes').value) || 0;
+      const secs = parseInt(document.getElementById('edit-seconds').value) || 0;
+      const newTotalSeconds = Math.max(0, (hrs * 3600) + (mins * 60) + secs);
+
+      if (task.isRunning) {
+        task.accumulatedSeconds = newTotalSeconds;
+        task.startedAt = Date.now();
+      } else {
+        task.accumulatedSeconds = newTotalSeconds;
+      }
+
+      saveState();
+      closeEditModal();
+      render();
+    };
+
+    window.deleteTask = function(id) {
+      state.tasks = state.tasks.filter(t => t.id !== id);
+      saveState();
+      render();
+    };
+
+    // Add Project
+    document.getElementById('project-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('project-input');
+      const name = input.value.trim();
+      if (!name) return;
+      const newId = 'proj-' + Date.now();
+      state.projects.push({ id: newId, name });
+      state.activeProjectId = newId;
+      input.value = '';
+      saveState();
+      render();
+    });
+
+    // Add Task & Auto-Start
+    document.getElementById('task-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('task-input');
+      const title = input.value.trim();
+      if (!title || !state.activeProjectId) return;
+
+      const now = Date.now();
+      const nowISO = new Date(now).toISOString();
+
+      // Stop running tasks
+      state.tasks.forEach(t => {
+        if (t.isRunning) {
+          const d = Math.floor((now - t.startedAt) / 1000);
+          t.accumulatedSeconds += d;
+          t.isRunning = false;
+          const sISO = t.currentStartISO || new Date(t.startedAt).toISOString();
+          if (!t.intervals) t.intervals = [];
+          t.intervals.push({ start: sISO, end: nowISO, durationSeconds: d });
+          t.lastStartISO = sISO;
+          t.lastEndISO = nowISO;
+          t.startedAt = null;
+          t.currentStartISO = null;
+        }
+      });
+
+      state.tasks.push({
+        id: 'task-' + Date.now(),
+        projectId: state.activeProjectId,
+        title,
+        accumulatedSeconds: 0,
+        isRunning: true,
+        startedAt: now,
+        currentStartISO: nowISO,
+        lastStartISO: null,
+        lastEndISO: null,
+        completed: false,
+        intervals: []
+      });
+
+      input.value = '';
+      saveState();
+      render();
+    });
+
+    // Hotkeys
+    window.addEventListener('keydown', (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      const isInput = activeTag === 'input' || activeTag === 'textarea';
+
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('edit-duration-modal');
+        if (modal.style.display === 'flex') {
+          closeEditModal();
+        } else {
+          // Stop running task
+          const running = state.tasks.find(t => t.isRunning);
+          if (running) toggleTask(running.id);
+        }
+        return;
+      }
+
+      if (!isInput) {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          toggleActiveTask();
+        } else if (e.key === 'n' || e.key === 'N' || e.key === '/') {
+          e.preventDefault();
+          document.getElementById('task-input').focus();
+        }
+      }
+    });
+
+    // Detailed CSV Export with Date & Time Intervals
+    window.exportCSV = function() {
+      let csv = "Project,Task,Status,Date,Start_Time,End_Time,Duration(HH:MM:SS),DurationSeconds\n";
+
+      state.tasks.forEach(t => {
+        const p = state.projects.find(x => x.id === t.projectId);
+        const pName = p ? p.name : 'Unknown';
+        const status = t.completed ? "Completed" : "Active";
+
+        if (t.intervals && t.intervals.length > 0) {
+          t.intervals.forEach(inv => {
+            const d = new Date(inv.start);
+            const dateStr = d.toLocaleDateString();
+            const startStr = formatClockTime(inv.start);
+            const endStr = formatClockTime(inv.end);
+            csv += `"${pName}","${t.title}","${status}","${dateStr}","${startStr}","${endStr}","${formatTime(inv.durationSeconds)}",${inv.durationSeconds}\n`;
+          });
+        }
+
+        // If it's currently running right now, append current in-progress slice
+        if (t.isRunning && t.startedAt) {
+          const sliceSecs = Math.floor((Date.now() - t.startedAt) / 1000);
+          const d = new Date(t.currentStartISO || t.startedAt);
+          csv += `"${pName}","${t.title}","In Progress","${d.toLocaleDateString()}","${formatClockTime(d)}","Running","${formatTime(sliceSecs)}",${sliceSecs}\n`;
+        }
+
+        // Fallback for manually edited or legacy tasks without interval logs
+        if ((!t.intervals || t.intervals.length === 0) && !t.isRunning) {
+          const totalSecs = t.accumulatedSeconds || 0;
+          csv += `"${pName}","${t.title}","${status}","${new Date().toLocaleDateString()}","--","--","${formatTime(totalSecs)}",${totalSecs}\n`;
+        }
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `detailed_timesheet_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    };
+
+    // Full JSON Backup & Restore
+    window.backupJSON = function() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `tracker_full_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+    };
+
+    window.restoreJSON = function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.projects && imported.tasks) {
+            state = imported;
+            saveState();
+            render();
+            alert("Backup with start/end intervals restored successfully!");
+          } else {
+            alert("Invalid tracker backup format.");
+          }
+        } catch (err) {
+          alert("Error parsing JSON file.");
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    window.resetToZero = function() {
+      if (confirm("Reset everything to zero? All tasks, intervals, and projects will be permanently wiped.")) {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(FALLBACK_KEY);
+        state = { activeProjectId: 'proj-1', hideCompleted: false, projects: [{ id: 'proj-1', name: 'General Work' }], tasks: [] };
+        saveState();
+        render();
+      }
+    };
+
+    // Initialize
+    render();
+    setInterval(updateClocks, 1000);
+  </script>
+</body>
+</html>
