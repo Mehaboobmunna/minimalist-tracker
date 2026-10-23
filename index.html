@@ -4,68 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#090d16">
-  <meta name="description" content="Minimalist multi-project time tracking application.">
+  <meta name="description" content="Minimalist multi-project time tracking application with start/end interval logging.">
   <title>Minimalist Time Tracker</title>
-
-  <!-- PWA Manifest & Service Worker Auto-Registration -->
-  <script>
-    (function initPWA() {
-      // 1. Generate an inline SVG Icon for the PWA
-      const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-        <rect width="512" height="512" rx="100" fill="#090d16"/>
-        <circle cx="256" cy="256" r="180" fill="none" stroke="#2563eb" stroke-width="32"/>
-        <polyline points="256,120 256,256 340,300" fill="none" stroke="#60a5fa" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>`;
-      const iconUrl = 'data:image/svg+xml;base64,' + btoa(svgIcon);
-
-      // Add favicon & apple-touch-icon
-      const favicon = document.createElement('link');
-      favicon.rel = 'icon';
-      favicon.href = iconUrl;
-      document.head.appendChild(favicon);
-
-      // 2. Inline Web App Manifest
-      const manifest = {
-        name: "Minimalist Time Tracker",
-        short_name: "Tracker",
-        start_url: "./",
-        display: "standalone",
-        background_color: "#090d16",
-        theme_color: "#090d16",
-        icons: [
-          { src: iconUrl, sizes: "192x192 512x512", type: "image/svg+xml", purpose: "any maskable" }
-        ]
-      };
-      const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-      const manifestLink = document.createElement('link');
-      manifestLink.rel = 'manifest';
-      manifestLink.href = URL.createObjectURL(manifestBlob);
-      document.head.appendChild(manifestLink);
-
-      // 3. Inline Service Worker Registration for Offline Capabilities
-      if ('serviceWorker' in navigator) {
-        const swScript = `
-          const CACHE_NAME = 'tracker-cache-v1';
-          self.addEventListener('install', (e) => {
-            self.skipWaiting();
-          });
-          self.addEventListener('activate', (e) => {
-            e.waitUntil(clients.claim());
-          });
-          self.addEventListener('fetch', (e) => {
-            e.respondWith(
-              fetch(e.request).catch(() => caches.match(e.request))
-            );
-          });
-        `;
-        const swBlob = new Blob([swScript], { type: 'text/javascript' });
-        const swUrl = URL.createObjectURL(swBlob);
-        navigator.serviceWorker.register(swUrl).catch((err) => {
-          console.warn('Service Worker registration skipped (expected on non-HTTPS origins):', err);
-        });
-      }
-    })();
-  </script>
 
   <style>
     :root {
@@ -136,16 +76,6 @@
     }
 
     .header-actions { display: flex; align-items: center; gap: 6px; }
-
-    /* Install App Button */
-    .btn-install {
-      background: #1e3a8a;
-      color: #bfdbfe;
-      border: 1px solid #3b82f6;
-      font-weight: 600;
-      display: none; /* Appears only when PWA prompt triggers */
-    }
-    .btn-install:hover { background: #2563eb; color: #fff; }
 
     /* Hero Banner */
     .hero-banner {
@@ -375,8 +305,11 @@
     .btn-primary:hover { background: var(--accent-hover); }
     .btn-start { background: #064e3b; color: #6ee7b7; border: 1px solid #047857; }
     .btn-start:hover { background: #047857; color: #fff; }
-    .btn-pause { background: #78350f; color: #fde68a; border: 1px solid #b45309; }
-    .btn-pause:hover { background: #b45309; color: #fff; }
+    
+    /* Stop button with distinctive alert styling */
+    .btn-stop { background: #451a1a; color: #fca5a5; border: 1px solid #991b1b; }
+    .btn-stop:hover { background: #b91c1c; color: #fff; }
+
     .btn-action { background: #1e293b; color: var(--text); border: 1px solid var(--border); }
     .btn-action:hover { background: #334155; }
     .btn-delete { background: transparent; color: #64748b; padding: 4px 8px; }
@@ -399,11 +332,17 @@
 
     .task-left {
       display: flex;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      gap: 3px;
       overflow: hidden;
       margin-right: 12px;
       flex: 1;
+    }
+
+    .task-main-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .task-checkbox {
@@ -427,6 +366,13 @@
       color: var(--text-muted);
     }
     .task-title:hover { border-bottom-color: var(--text-muted); }
+
+    .task-stamp-info {
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      margin-left: 26px;
+    }
 
     .task-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     
@@ -509,13 +455,11 @@
       <div class="logo-area">
         <h1>Minimalist Tracker</h1>
         <div class="hotkey-hints">
-          <span><kbd>Space</kbd> Play/Pause</span>
+          <span><kbd>Space</kbd> Start/Stop</span>
           <span><kbd>N</kbd> New Task</span>
         </div>
       </div>
       <div class="header-actions">
-        <!-- PWA Install Button (revealed on supported desktop/mobile browsers) -->
-        <button id="pwa-install-btn" class="btn-install" style="font-size: 0.75rem;">Install App</button>
         <button class="btn-action" onclick="exportCSV()" style="font-size: 0.75rem;">Export CSV</button>
         <button class="btn-action" onclick="backupJSON()" style="font-size: 0.75rem;">Backup</button>
         <button class="btn-action" onclick="document.getElementById('restore-input').click()" style="font-size: 0.75rem;">Restore</button>
@@ -535,7 +479,7 @@
       </div>
       <div class="hero-clock-box">
         <div class="hero-clock" id="hero-clock" onclick="editCurrentRunningTime()" title="Click to adjust duration">00:00:00</div>
-        <button class="btn-action" id="hero-toggle-btn" onclick="toggleActiveTask()" style="padding: 6px 12px;">Toggle</button>
+        <button class="btn-action" id="hero-toggle-btn" onclick="toggleActiveTask()" style="padding: 6px 12px;">Start / Stop</button>
       </div>
     </div>
 
@@ -581,7 +525,7 @@
     <div class="modal-card">
       <div>
         <div class="modal-title" id="edit-modal-task-title">Adjust Duration</div>
-        <div class="modal-subtitle">Update duration if you left the timer running</div>
+        <div class="modal-subtitle">Update duration if you forgot to stop the timer</div>
       </div>
 
       <div>
@@ -622,35 +566,6 @@
     const STORAGE_KEY = 'minimalist_tracker_state';
     const FALLBACK_KEY = 'minimalist_tracker_v3';
 
-    // PWA Install Prompt Listener
-    let deferredPrompt = null;
-    const installBtn = document.getElementById('pwa-install-btn');
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-      // Prevent browser's default banner
-      e.preventDefault();
-      deferredPrompt = e;
-      // Show custom install button in header
-      if (installBtn) {
-        installBtn.style.display = 'inline-block';
-      }
-    });
-
-    installBtn.addEventListener('click', async () => {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        installBtn.style.display = 'none';
-      }
-      deferredPrompt = null;
-    });
-
-    window.addEventListener('appinstalled', () => {
-      if (installBtn) installBtn.style.display = 'none';
-      console.log('PWA installed successfully');
-    });
-
     function loadState() {
       let saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(FALLBACK_KEY);
       if (saved) {
@@ -663,6 +578,7 @@
               task.startedAt = now;
             }
             if (task.completed === undefined) task.completed = false;
+            if (!task.intervals) task.intervals = [];
           });
           if (parsed.hideCompleted === undefined) parsed.hideCompleted = false;
           return parsed;
@@ -685,24 +601,25 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
-    window.addEventListener('beforeunload', () => {
-      const now = Date.now();
-      state.tasks.forEach(task => {
-        if (task.isRunning && task.startedAt) {
-          task.accumulatedSeconds += Math.floor((now - task.startedAt) / 1000);
-          task.startedAt = now;
-        }
-      });
-      saveState();
-    });
-
-    // Formatting & Time Helpers
+    // Date & Time Formatting Utilities
     function formatTime(s) {
       const hrs = Math.floor(s / 3600);
       const mins = Math.floor((s % 3600) / 60);
       const secs = s % 60;
       const pad = n => String(n).padStart(2, '0');
       return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+    }
+
+    function formatClockTime(isoOrTimestamp) {
+      if (!isoOrTimestamp) return '--:--';
+      const d = new Date(isoOrTimestamp);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    }
+
+    function formatDate(isoOrTimestamp) {
+      if (!isoOrTimestamp) return '';
+      const d = new Date(isoOrTimestamp);
+      return d.toLocaleDateString();
     }
 
     function getTaskSeconds(t) {
@@ -716,6 +633,18 @@
     function getProjectSeconds(pId) {
       return state.tasks.filter(t => t.projectId === pId).reduce((sum, t) => sum + getTaskSeconds(t), 0);
     }
+
+    // Auto-save & background anchor updates
+    window.addEventListener('beforeunload', () => {
+      const now = Date.now();
+      state.tasks.forEach(task => {
+        if (task.isRunning && task.startedAt) {
+          task.accumulatedSeconds += Math.floor((now - task.startedAt) / 1000);
+          task.startedAt = now;
+        }
+      });
+      saveState();
+    });
 
     // Render Pipeline
     function render() {
@@ -731,7 +660,6 @@
     function renderProjects() {
       const container = document.getElementById('project-list');
       container.innerHTML = '';
-
       document.getElementById('project-count').textContent = state.projects.length;
 
       state.projects.forEach(p => {
@@ -772,375 +700,4 @@
         alert("You must keep at least one project.");
         return;
       }
-      const p = state.projects.find(x => x.id === pId);
-      if (confirm(`Delete project "${p ? p.name : ''}" and all its tasks?`)) {
-        state.tasks = state.tasks.filter(t => t.projectId !== pId);
-        state.projects = state.projects.filter(x => x.id !== pId);
-        if (state.activeProjectId === pId) {
-          state.activeProjectId = state.projects[0].id;
-        }
-        saveState();
-        render();
-      }
-    };
-
-    function renderTasks() {
-      const container = document.getElementById('task-list');
-      container.innerHTML = '';
-
-      document.getElementById('hide-completed-toggle').checked = state.hideCompleted;
-
-      let list = state.tasks.filter(t => t.projectId === state.activeProjectId);
-      if (state.hideCompleted) {
-        list = list.filter(t => !t.completed);
-      }
-
-      if (list.length === 0) {
-        container.innerHTML = '<div class="empty-state">No tasks in this project yet. Add one above to start tracking.</div>';
-        return;
-      }
-
-      list.forEach(t => {
-        const item = document.createElement('div');
-        item.className = `task-item ${t.isRunning ? 'running' : ''} ${t.completed ? 'completed' : ''}`;
-        item.innerHTML = `
-          <div class="task-left">
-            <input type="checkbox" class="task-checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTaskCompletion('${t.id}')">
-            <span class="task-title" onclick="editTaskName('${t.id}')" title="Click to rename">${t.title}</span>
-          </div>
-          <div class="task-controls">
-            <span class="task-timer" id="timer-${t.id}" onclick="openEditDurationModal('${t.id}')" title="Click to adjust logged time">
-              00:00:00
-            </span>
-            <button class="${t.isRunning ? 'btn-pause' : 'btn-start'}" onclick="toggleTask('${t.id}')">
-              ${t.isRunning ? 'Pause' : 'Start'}
-            </button>
-            <button class="btn-delete" onclick="deleteTask('${t.id}')" title="Delete Task">✕</button>
-          </div>
-        `;
-        container.appendChild(item);
-      });
-    }
-
-    function updateClocks() {
-      const runningTask = state.tasks.find(t => t.isRunning);
-      const heroPulse = document.getElementById('hero-pulse');
-      const heroClock = document.getElementById('hero-clock');
-      const heroTask = document.getElementById('hero-task-name');
-      const heroProj = document.getElementById('hero-project-name');
-      const heroBanner = document.getElementById('hero-banner');
-      const heroToggleBtn = document.getElementById('hero-toggle-btn');
-
-      if (runningTask) {
-        const activeProj = state.projects.find(p => p.id === runningTask.projectId);
-        const timeStr = formatTime(getTaskSeconds(runningTask));
-        heroPulse.classList.add('active');
-        heroBanner.classList.add('running');
-        heroTask.textContent = runningTask.title;
-        heroProj.textContent = activeProj ? activeProj.name : 'Project';
-        heroClock.textContent = timeStr;
-        heroToggleBtn.textContent = 'Pause';
-
-        document.title = `(${timeStr}) ${runningTask.title} • Tracker`;
-      } else {
-        heroPulse.classList.remove('active');
-        heroBanner.classList.remove('running');
-        heroTask.textContent = 'Idle';
-        heroProj.textContent = 'No active timer';
-        heroClock.textContent = '00:00:00';
-        heroToggleBtn.textContent = 'Resume';
-        document.title = 'Minimalist Time Tracker';
-      }
-
-      state.tasks.forEach(t => {
-        const el = document.getElementById(`timer-${t.id}`);
-        if (el) el.textContent = formatTime(getTaskSeconds(t));
-      });
-
-      state.projects.forEach(p => {
-        const el = document.getElementById(`p-badge-${p.id}`);
-        if (el) el.textContent = formatTime(getProjectSeconds(p.id));
-      });
-    }
-
-    // Task Actions
-    window.toggleTaskCompletion = function(id) {
-      const task = state.tasks.find(t => t.id === id);
-      if (!task) return;
-      task.completed = !task.completed;
-      if (task.completed && task.isRunning) {
-        task.accumulatedSeconds += Math.floor((Date.now() - task.startedAt) / 1000);
-        task.isRunning = false;
-        task.startedAt = null;
-      }
-      saveState();
-      render();
-    };
-
-    window.toggleHideCompleted = function(checked) {
-      state.hideCompleted = checked;
-      saveState();
-      render();
-    };
-
-    window.editTaskName = function(id) {
-      const task = state.tasks.find(t => t.id === id);
-      if (!task) return;
-      const newTitle = prompt("Update task name:", task.title);
-      if (newTitle && newTitle.trim()) {
-        task.title = newTitle.trim();
-        saveState();
-        render();
-      }
-    };
-
-    window.editCurrentRunningTime = function() {
-      const running = state.tasks.find(t => t.isRunning);
-      if (running) openEditDurationModal(running.id);
-    };
-
-    window.toggleActiveTask = function() {
-      const running = state.tasks.find(t => t.isRunning);
-      if (running) {
-        toggleTask(running.id);
-      } else {
-        const first = state.tasks.find(t => t.projectId === state.activeProjectId && !t.completed);
-        if (first) toggleTask(first.id);
-      }
-    };
-
-    // Duration Modal
-    window.openEditDurationModal = function(taskId) {
-      editingTaskId = taskId;
-      const task = state.tasks.find(t => t.id === taskId);
-      if (!task) return;
-
-      const currentTotal = getTaskSeconds(task);
-      const hrs = Math.floor(currentTotal / 3600);
-      const mins = Math.floor((currentTotal % 3600) / 60);
-      const secs = currentTotal % 60;
-
-      document.getElementById('edit-modal-task-title').textContent = `Adjust: "${task.title}"`;
-      document.getElementById('edit-hours').value = hrs;
-      document.getElementById('edit-minutes').value = mins;
-      document.getElementById('edit-seconds').value = secs;
-
-      document.getElementById('edit-duration-modal').style.display = 'flex';
-    };
-
-    window.closeEditModal = function() {
-      document.getElementById('edit-duration-modal').style.display = 'none';
-      editingTaskId = null;
-    };
-
-    window.quickSubtract = function(secondsToDeduct) {
-      const hInput = document.getElementById('edit-hours');
-      const mInput = document.getElementById('edit-minutes');
-      const sInput = document.getElementById('edit-seconds');
-
-      let currentSecs = (parseInt(hInput.value) || 0) * 3600 +
-                        (parseInt(mInput.value) || 0) * 60 +
-                        (parseInt(sInput.value) || 0);
-
-      currentSecs = Math.max(0, currentSecs - secondsToDeduct);
-
-      hInput.value = Math.floor(currentSecs / 3600);
-      mInput.value = Math.floor((currentSecs % 3600) / 60);
-      sInput.value = currentSecs % 60;
-    };
-
-    window.saveEditedDuration = function() {
-      if (!editingTaskId) return;
-      const task = state.tasks.find(t => t.id === editingTaskId);
-      if (!task) return;
-
-      const hrs = parseInt(document.getElementById('edit-hours').value) || 0;
-      const mins = parseInt(document.getElementById('edit-minutes').value) || 0;
-      const secs = parseInt(document.getElementById('edit-seconds').value) || 0;
-
-      const newTotalSeconds = Math.max(0, (hrs * 3600) + (mins * 60) + secs);
-
-      if (task.isRunning) {
-        task.accumulatedSeconds = newTotalSeconds;
-        task.startedAt = Date.now();
-      } else {
-        task.accumulatedSeconds = newTotalSeconds;
-      }
-
-      saveState();
-      closeEditModal();
-      render();
-    };
-
-    // Timer Controls
-    window.toggleTask = function(id) {
-      const now = Date.now();
-      const target = state.tasks.find(t => t.id === id);
-      if (!target) return;
-
-      if (target.isRunning) {
-        target.accumulatedSeconds += Math.floor((now - target.startedAt) / 1000);
-        target.isRunning = false;
-        target.startedAt = null;
-      } else {
-        state.tasks.forEach(t => {
-          if (t.isRunning) {
-            t.accumulatedSeconds += Math.floor((now - t.startedAt) / 1000);
-            t.isRunning = false;
-            t.startedAt = null;
-          }
-        });
-        target.isRunning = true;
-        target.startedAt = now;
-      }
-      saveState();
-      render();
-    };
-
-    window.deleteTask = function(id) {
-      state.tasks = state.tasks.filter(t => t.id !== id);
-      saveState();
-      render();
-    };
-
-    // Add Project
-    document.getElementById('project-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const input = document.getElementById('project-input');
-      const name = input.value.trim();
-      if (!name) return;
-      const newId = 'proj-' + Date.now();
-      state.projects.push({ id: newId, name });
-      state.activeProjectId = newId;
-      input.value = '';
-      saveState();
-      render();
-    });
-
-    // Add Task with Instant Auto-Start
-    document.getElementById('task-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const input = document.getElementById('task-input');
-      const title = input.value.trim();
-      if (!title || !state.activeProjectId) return;
-
-      const now = Date.now();
-      state.tasks.forEach(t => {
-        if (t.isRunning) {
-          t.accumulatedSeconds += Math.floor((now - t.startedAt) / 1000);
-          t.isRunning = false;
-          t.startedAt = null;
-        }
-      });
-
-      state.tasks.push({
-        id: 'task-' + Date.now(),
-        projectId: state.activeProjectId,
-        title,
-        accumulatedSeconds: 0,
-        isRunning: true,
-        startedAt: now,
-        completed: false
-      });
-
-      input.value = '';
-      saveState();
-      render();
-    });
-
-    // Global Keyboard Shortcuts
-    window.addEventListener('keydown', (e) => {
-      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
-      const isInput = activeTag === 'input' || activeTag === 'textarea';
-
-      if (e.key === 'Escape') {
-        const modal = document.getElementById('edit-duration-modal');
-        if (modal.style.display === 'flex') {
-          closeEditModal();
-        } else {
-          state.tasks.forEach(t => {
-            if (t.isRunning) {
-              t.accumulatedSeconds += Math.floor((Date.now() - t.startedAt) / 1000);
-              t.isRunning = false;
-              t.startedAt = null;
-            }
-          });
-          saveState();
-          render();
-        }
-        return;
-      }
-
-      if (!isInput) {
-        if (e.code === 'Space') {
-          e.preventDefault();
-          toggleActiveTask();
-        } else if (e.key === 'n' || e.key === 'N' || e.key === '/') {
-          e.preventDefault();
-          document.getElementById('task-input').focus();
-        }
-      }
-    });
-
-    // Export & Backup
-    window.exportCSV = function() {
-      let csv = "Project,Task,Status,Duration(HH:MM:SS),TotalSeconds\n";
-      state.tasks.forEach(t => {
-        const p = state.projects.find(x => x.id === t.projectId);
-        const s = getTaskSeconds(t);
-        const status = t.completed ? "Completed" : "Active";
-        csv += `"${p ? p.name : ''}","${t.title}","${status}","${formatTime(s)}",${s}\n`;
-      });
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `timesheet_${new Date().toISOString().slice(0,10)}.csv`;
-      a.click();
-    };
-
-    window.backupJSON = function() {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
-      const a = document.createElement('a');
-      a.href = dataStr;
-      a.download = `tracker_backup_${new Date().toISOString().slice(0,10)}.json`;
-      a.click();
-    };
-
-    window.restoreJSON = function(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const imported = JSON.parse(e.target.result);
-          if (imported.projects && imported.tasks) {
-            state = imported;
-            saveState();
-            render();
-            alert("Backup restored successfully!");
-          } else {
-            alert("Invalid tracker backup format.");
-          }
-        } catch (err) {
-          alert("Error parsing JSON file.");
-        }
-      };
-      reader.readAsText(file);
-    };
-
-    window.resetToZero = function() {
-      if (confirm("Reset everything to zero? All tasks and projects will be wiped.")) {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(FALLBACK_KEY);
-        state = { activeProjectId: 'proj-1', hideCompleted: false, projects: [{ id: 'proj-1', name: 'General Work' }], tasks: [] };
-        saveState();
-        render();
-      }
-    };
-
-    // Initialize
-    render();
-    setInterval(updateClocks, 1000);
-  </script>
-</body>
-</html>
+      const p = state.projects.find(x => x.
